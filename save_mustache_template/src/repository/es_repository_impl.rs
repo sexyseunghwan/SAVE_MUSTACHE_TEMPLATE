@@ -4,10 +4,7 @@ use crate::traits::repository::es_repository::*;
 
 use crate::utils_modules::io_utils::*;
 
-use crate::model::{
-    cluster_info::*,
-    script_content::*
-};
+use crate::model::{cluster_info::*, script_content::*};
 
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub")]
@@ -23,15 +20,21 @@ pub struct EsClient {
 }
 
 impl EsRepositoryImpl {
+    
     #[doc = "Elasticsearch connection 인스턴스를 초기화 해주는 함수"]
     /// # Arguments
     /// * `path`    - Elasticsearch connection 정보가 존재하는 경로
     ///
     /// # Returns
     /// * anyhow::Result<Self>
-    pub fn new(path: &str) -> Self {
-        let copy_es_info: ClusterInfo =
-            read_toml_from_file::<ClusterInfo>(path).unwrap_or_else(|e| {
+    pub fn new() -> Self {
+        let es_info: String = env::var("ES_INFO_PATH").unwrap_or_else(|e| {
+            error!("[ERROR][EsRepositoryImpl->new] {:?}", e);
+            panic!("[ERROR][EsRepositoryImpl->new] {:?}", e)
+        });
+
+        let copy_es_info: ClusterInfo = read_toml_from_file::<ClusterInfo>(&es_info)
+            .unwrap_or_else(|e| {
                 error!("[ERROR][EsRepositoryImpl->new] {:?}", e);
                 panic!("[ERROR][EsRepositoryImpl->new] {:?}", e);
             });
@@ -82,16 +85,15 @@ impl EsRepositoryImpl {
         Fut: Future<Output = Result<Response, anyhow::Error>> + Send,
     {
         let mut last_error: Option<anyhow::Error> = None;
-    
-        let mut rng: StdRng = StdRng::from_entropy(); /* 랜덤 시드로 생성 */ 
-        
-        /* 클라이언트 목록을 셔플 -> StdRng를 사용하여 셔플*/ 
-        let mut shuffled_clients: Vec<Arc<EsClient>>= self.es_clients.clone();
+
+        let mut rng: StdRng = StdRng::from_entropy(); /* 랜덤 시드로 생성 */
+
+        /* 클라이언트 목록을 셔플 -> StdRng를 사용하여 셔플*/
+        let mut shuffled_clients: Vec<Arc<EsClient>> = self.es_clients.clone();
         shuffled_clients.shuffle(&mut rng);
-        
-        /* 셔플된 클라이언트들에 대해 순차적으로 operation 수행 */ 
+
+        /* 셔플된 클라이언트들에 대해 순차적으로 operation 수행 */
         for es_client in shuffled_clients {
-            
             let es_conn: Elasticsearch = es_client.es_conn.clone();
 
             match operation(es_conn).await {
@@ -101,57 +103,54 @@ impl EsRepositoryImpl {
                 }
             }
         }
-        
-        /* 모든 노드에서 실패했을 경우 에러 반환 */ 
+
+        /* 모든 노드에서 실패했을 경우 에러 반환 */
         Err(anyhow::anyhow!(
             "All Elasticsearch nodes failed. Last error: {:?}",
             last_error
         ))
     }
-
-
 }
 
 #[async_trait]
 impl EsRepository for EsRepositoryImpl {
+    
+    #[doc = ""]
+    async fn get_mustache_template_infos(&self) -> anyhow::Result<Value> {
 
-    // async fn get_mustache_template_infos(&self) -> anyhow::Result<Value> {
+        let response: Response = self.execute_on_any_node(|es_client| async move {
 
-    //     let response: Response = self.execute_on_any_node(|es_client| async move {
-
-    //         let response: Response = 
-    //             es_client
-    //             .cluster()
-    //             .state(ClusterStateParts::Metric(&["metadata"]))
-    //             .filter_path(&["metadata.stored_scripts"])
-    //             .send()
-    //             .await?;
+            let response: Response = 
+                es_client
+                .cluster()
+                .state(ClusterStateParts::Metric(&["metadata"]))
+                .filter_path(&["metadata.stored_scripts"])
+                .send()
+                .await?;
             
-    //         Ok(response)
+            Ok(response)
 
-    //     })
-    //     .await?;
+        })
+        .await?;
 
-    //     if response.status_code().is_success() {
-    //         let response_body: Value = response.json::<Value>().await?;
-    //         Ok(response_body)
-    //     } else {
-    //         Err(anyhow!("[ERROR][EsRepositoryImpl->get_mustache_template_infos()]"))
-    //     }
-    // }
-
-
+        if response.status_code().is_success() {
+            let response_body: Value = response.json::<Value>().await?;
+            Ok(response_body)
+        } else {
+            Err(anyhow!("[ERROR][EsRepositoryImpl->get_mustache_template_infos()]"))
+        }
+    }
+    
+    #[doc = ""]
     async fn get_mustache_script(&self, template_name: &str) -> anyhow::Result<ScriptContent> {
-
         let endpoint: String = format!("/_scripts/{}", template_name);
 
-        let response: Response = self.execute_on_any_node(move |es_client| 
-            {
+        let response: Response = self
+            .execute_on_any_node(move |es_client| {
                 let endpoint: String = endpoint.clone();
 
                 async move {
-                    let response: Response = 
-                        es_client
+                    let response: Response = es_client
                         .transport()
                         .send(
                             Method::Get,
@@ -165,67 +164,22 @@ impl EsRepository for EsRepositoryImpl {
 
                     Ok(response)
                 }
-            }
-        ).await?;
+            })
+            .await?;
 
-        if response.status_code().is_success() { 
+        if response.status_code().is_success() {
             let value: serde_json::Value = response.json().await?;
-            
+
             if let Some(script) = value.get("script") {
                 let content: ScriptContent = serde_json::from_value(script.clone())?;
                 Ok(content)
             } else {
-                Err(anyhow!("[ERROR][EsRepositoryImpl->get_mustache_script] script not found"))
+                Err(anyhow!(
+                    "[ERROR][EsRepositoryImpl->get_mustache_script] script not found"
+                ))
             }
-
         } else {
             Err(anyhow!("[ERROR][EsRepositoryImpl->get_mustache_script]"))
         }
     }
-
-
-    // async fn post_mustache_template(&self, template_name: &str, script_content: ScriptContent) -> anyhow::Result<()> {
-
-    //     let endpoint: String = format!("/_scripts/{}", template_name);
-
-    //     let body = json!({
-    //         "script": {
-    //             "lang": script_content.lang(),
-    //             "source": script_content.source()
-    //         }
-    //     });
-        
-    
-    //     let response: Response = self.execute_on_any_node(move |es_client| {
-            
-    //         let endpoint: String = endpoint.clone();
-    //         let body: Value = body.clone();
-
-    //         async move {
-    //             let response: Response = es_client
-    //                 .transport()
-    //                 .send(
-    //                     Method::Put,
-    //                     endpoint.as_str(),
-    //                     HeaderMap::new(),
-    //                     None::<&str>,
-    //                     Some(JsonBody::new(body)),
-    //                     None::<Duration>,
-    //                 )
-    //                 .await?;
-
-    //             Ok(response)
-    //         }
-    //     }).await?;
-
-    //     if response.status_code().is_success() {
-    //         Ok(())
-    //     } else {
-    //         let text: String = response.text().await.unwrap_or_default();
-    //         Err(anyhow!(
-    //             "[ERROR][EsRepositoryImpl->put_mustache_script] Failed to upload script: {}",
-    //             text
-    //         ))
-    //     }
-    // }
 }
