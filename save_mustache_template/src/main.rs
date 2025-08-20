@@ -1,9 +1,9 @@
 /*
 Author      : Seunghwan Shin
-Create date : 2025-08-00
-Description :
+Create date : 2025-08-20
+Description : Elasticsearch Mustache template 을 관리해주기 위한 프로그램
 
-History     : 2025-08-00 Seunghwan Shin       # [v.1.0.0] first create.
+History     : 2025-08-20 Seunghwan Shin       # [v.1.0.0] first create.
 */
 
 mod common;
