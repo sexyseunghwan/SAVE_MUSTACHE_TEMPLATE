@@ -9,5 +9,4 @@ pub trait EsRepository: Send + Sync {
     
     #[doc = "특정 mustache template 을 가져와주는 함수"]
     async fn get_mustache_script(&self, template_name: &str) -> anyhow::Result<ScriptContent>;
-
 }

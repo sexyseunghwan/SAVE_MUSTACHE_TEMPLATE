@@ -7,5 +7,4 @@ use crate::model::script_content::*;
 pub struct MustacheTemplate {
     pub script_name: String,
     pub scipt: ScriptContent
-    //pub script: Value
 }   

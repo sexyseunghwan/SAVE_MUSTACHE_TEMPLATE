@@ -25,6 +25,8 @@ use utils_modules::logger_utils::*;
 
 mod traits;
 
+mod enums;
+
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -35,7 +37,7 @@ async fn main() {
     let es_conn: EsRepositoryImpl = EsRepositoryImpl::new();
     let template_service: TemplateServiceImpl<EsRepositoryImpl> = TemplateServiceImpl::new(es_conn);
     let main_controller: MainController<TemplateServiceImpl<EsRepositoryImpl>> = MainController::new(template_service);
-
+    
     /* 메인함수 실행 */
     match main_controller.main_task().await {
         Ok(_) => {

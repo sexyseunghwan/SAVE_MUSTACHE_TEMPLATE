@@ -1,4 +1,10 @@
+PUT _scripts/es_alba_job_index_job_list_v2_test_tpl_copy_22_1
 {
+    "script": {
+        "lang": "mustache",
+        "source": """
+            
+            {
 			"query": {
 				"bool": {
 					{{#tpl_albamap_on}}
@@ -1229,4 +1235,6 @@
 			"from": {{tpl_from}}{{^tpl_from}}0{{/tpl_from}},
 			"size": {{tpl_size}}{{^tpl_size}}20{{/tpl_size}},
 			"track_total_hits":true
-		}
+		}"""
+        }
+}

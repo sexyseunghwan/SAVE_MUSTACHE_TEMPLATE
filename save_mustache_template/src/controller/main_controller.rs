@@ -8,30 +8,22 @@ pub struct MainController<T: TemplateService> {
 }
 
 impl<T: TemplateService> MainController<T> {
+    
     #[doc = "메인 테스크"]
     pub async fn main_task(&self) -> anyhow::Result<()> {
         
         /* 1. 클러스터에 있는 모든 mustache template 을 가져와준다. */
-        
         loop {
+            self.clear_screen();
             self.show_menu();
             let choice: String = self.get_user_input("Please select a number")?;
             
             match choice.trim() {
                 "1" => {
-                    self.template_service.sync_all_template_from_server().await?;
-                    //println!("템플릿 목록을 가져오는 중...");
-                    // TODO: 템플릿 목록 가져오기 구현
+                    self.update_all_templates().await?;
                 }
                 "2" => {
-                    //let template_name = self.get_user_input("템플릿 이름을 입력하세요")?;
-                    //println!("템플릿 '{}' 저장 중...", template_name.trim());
-                    // TODO: 템플릿 저장 구현
-                }
-                "3" => {
-                    //let template_id = self.get_user_input("템플릿 ID를 입력하세요")?;
-                    //println!("템플릿 ID '{}' 삭제 중...", template_id.trim());
-                    // TODO: 템플릿 삭제 구현
+                    self.update_speicific_template().await?;
                 }
                 "q" | "Q" => {
                     println!("Exit the program.");
@@ -45,14 +37,57 @@ impl<T: TemplateService> MainController<T> {
         
         Ok(())
     }
+
+    #[doc = "1. Update all templates from server"]
+    async fn update_all_templates(&self) -> anyhow::Result<()> {
+
+        self.clear_screen();
+        println!("Getting template list...");
+
+        match self.template_service.sync_all_template_from_server().await {
+            Ok(_) => {
+                println!("Successfully loaded the list of templates.");
+            },
+            Err(e) => {
+                println!("Failed to load template list.");
+                error!("[ERROR][main_task] {:?}", e);
+                
+            }
+        }
+
+        self.get_user_input("Press any key to continue")?;
+
+        Ok(())
+    }
+
+    #[doc = "2. Update a specific template from server"]
+    async fn update_speicific_template(&self) -> anyhow::Result<()> {
+
+        self.clear_screen();
+        let choice: String = self.get_user_input("Please enter the template name")?;
+        let trimmed_choice: String = choice.trim().to_string();
+
+        self.template_service.sync_specific_template_from_server(&trimmed_choice).await?;
+
+        self.get_user_input("Press any key to continue")?;
+
+        Ok(())
+    }
+
     
     fn show_menu(&self) {
         println!("\n=== Mustache Template Manager ===");
         println!("1. Update all templates from server");
         println!("2. Update a specific template from server");
-        //println!("3. 템플릿 삭제하기");
         println!("q. Quit");
         println!("================================");
+    }
+
+    fn clear_screen(&self) {
+
+        for _i in 0..100 {
+            println!();
+        }
     }
     
     fn get_user_input(&self, prompt: &str) -> anyhow::Result<String> {

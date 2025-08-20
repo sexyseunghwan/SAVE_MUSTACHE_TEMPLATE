@@ -40,3 +40,5 @@ pub use derive_new::new;
 pub use getset::Getters;
 
 pub use async_trait::async_trait;
+
+pub use indoc::formatdoc;

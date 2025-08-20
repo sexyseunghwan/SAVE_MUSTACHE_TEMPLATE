@@ -1,1 +1,0 @@
-{"size":"{{size}}","query":{"range":{"@timestamp":{"gte":"{{start_date}}","lte":"{{end_date}}"}}},"aggs":{"total_prodt_money":{"sum":{"field":"prodt_money"}}},"sort":{"@timestamp":{"order":"asc"}}}
